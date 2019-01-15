@@ -32,7 +32,8 @@ def decorator(deco):
         update_wrapper(wrapper, deco)
         return result
 
-    return update_wrapper(wrapper, deco)
+    update_wrapper(wrapper, deco)
+    return wrapper
 
 
 def countcalls(func):
@@ -45,7 +46,6 @@ def countcalls(func):
 
     wrapper.calls = 0
 
-    # return update_wrapper(wrapper, func)
     update_wrapper(wrapper, func)
     return wrapper
 
@@ -132,7 +132,6 @@ def trace(indent_symbols):
 @countcalls
 @n_ary
 def foo(a, b):
-    print "foo"
     return a + b
 
 
