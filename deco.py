@@ -13,12 +13,7 @@ def disable(func):
 
     """
 
-    def wrapper(*args):
-        update_wrapper(wrapper, func)
-        return func(*args)
-
-    update_wrapper(wrapper, func)
-    return wrapper
+    return func
 
 
 def decorator(deco):
@@ -27,29 +22,66 @@ def decorator(deco):
     and stuff from the function it's decorating.
     """
 
-    def wrapper(*args):
-        result = deco(*args)
-        update_wrapper(wrapper, deco)
-        return result
+    def wrapper_for_deco(deco_args):
 
-    update_wrapper(wrapper, deco)
-    return wrapper
+        if hasattr(deco_args, '__call__'):
+            func = deco_args
+            # Если на вход пришла ф-ия, то обернём её декоратором deco
+            resulted_func = deco(func)
+            # Обновим словари нашей ф-ии словарями ф-ии извне
+            update_wrapper(resulted_func, func)
+
+            # Обёртка для результирующей ф-ии
+            def wrapped_func(*args):
+                # Каждый раз при запуске будем обновлять наши словари
+                update_wrapper(resulted_func, func)
+                result = resulted_func(*args)
+                # Так же обновим словари нашей обёртки словарями результирующей ф-ии
+                update_wrapper(wrapped_func, resulted_func)
+                return result
+
+            update_wrapper(wrapped_func, func)
+            return wrapped_func
+
+        else:
+            # В случае, если на вход пришла не ф-ия, значит у нас декоратор с аргументами
+            # Поэтому вначале получим декортатор.
+
+            new_deco = deco(deco_args)
+
+            def wrapper_for_wrapped_func(func):
+                resulted_func = new_deco(func)
+                update_wrapper(resulted_func, func)
+
+                def wrapped_func(*args):
+                    update_wrapper(resulted_func, func)
+                    result = resulted_func(*args)
+                    update_wrapper(wrapped_func, resulted_func)
+                    return result
+
+                update_wrapper(wrapped_func, func)
+                return wrapped_func
+
+            return wrapper_for_wrapped_func
+
+    return wrapper_for_deco
 
 
+@decorator
 def countcalls(func):
     """Decorator that counts calls made to the function decorated."""
 
     def wrapper(*args):
-        update_wrapper(wrapper, func)
+        result = func(*args)
         wrapper.calls += 1
-        return func(*args)
+        return result
 
     wrapper.calls = 0
 
-    update_wrapper(wrapper, func)
     return wrapper
 
 
+@decorator
 def memo(func):
     """
     Memoize a function so that it caches all return values for
@@ -57,21 +89,19 @@ def memo(func):
     """
 
     def wrapper(*args):
-        update_wrapper(wrapper, func)
-
-        if tuple(args) in wrapper.cache.keys():
-            result = wrapper.cache[tuple(args)]
+        if args in wrapper.cache.keys():
+            result = wrapper.cache[args]
         else:
             result = func(*args)
-            wrapper.cache[tuple(args)] = result
+            wrapper.cache[args] = result
         return result
 
     wrapper.cache = {}
 
-    update_wrapper(wrapper, func)
     return wrapper
 
 
+@decorator
 def n_ary(func):
     """
     Given binary function f(x, y), return an n_ary function such
@@ -79,16 +109,17 @@ def n_ary(func):
     """
 
     def wrapper(*args):
-        update_wrapper(wrapper, func)
         if len(args) > 2:
             return wrapper(args[0], wrapper(*args[1:]))
+        elif len(args) == 1:
+            return args
         else:
             return func(*args)
 
-    update_wrapper(wrapper, func)
     return wrapper
 
 
+@decorator
 def trace(indent_symbols):
     """Trace calls made to function decorated.
 
@@ -112,7 +143,6 @@ def trace(indent_symbols):
 
     def real_trace(func):
         def wrapper(*args):
-            update_wrapper(wrapper, func)
             print indent_symbols * wrapper.indent, "--> {}({})".format(func.__name__, args[0])
             wrapper.indent += 1
             result = func(*args)
@@ -121,8 +151,6 @@ def trace(indent_symbols):
             return result
 
         wrapper.indent = 0
-        # return update_wrapper(wrapper, func)
-        update_wrapper(wrapper, func)
         return wrapper
 
     return real_trace
